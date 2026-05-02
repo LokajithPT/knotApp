@@ -162,19 +162,19 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
 
   void _updatePhysics() {
     if (nodes.isEmpty) return;
-    _time += 0.02;
+    _time += 0.016;
 
     final centerX = MediaQuery.of(context).size.width / 2 / _scale;
     final centerY = MediaQuery.of(context).size.height / 2 / _scale;
 
     for (var i = 0; i < nodes.length; i++) {
-      final floatX = math.sin(_time * 0.3 + i * 0.7) * 15;
-      final floatY = math.cos(_time * 0.25 + i * 0.5) * 12;
+      final floatX = math.sin(_time * 0.2 + i * 0.5) * 3;
+      final floatY = math.cos(_time * 0.15 + i * 0.3) * 2;
 
       final dxCenter = (centerX + floatX) - nodes[i].x;
       final dyCenter = (centerY + floatY) - nodes[i].y;
-      nodes[i].vx += dxCenter * 0.0008;
-      nodes[i].vy += dyCenter * 0.0008;
+      nodes[i].vx += dxCenter * 0.03;
+      nodes[i].vy += dyCenter * 0.03;
     }
 
     for (var i = 0; i < nodes.length; i++) {
@@ -182,14 +182,14 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         final dx = nodes[j].x - nodes[i].x;
         final dy = nodes[j].y - nodes[i].y;
         final dist = math.sqrt(dx * dx + dy * dy);
-        if (dist > 0 && dist < 300) {
-          final repulsion = 4000 / (dist * dist + 100);
+        if (dist > 0 && dist < 250) {
+          final repulsion = 1500 / (dist * dist + 100);
           final nx = dx / dist;
           final ny = dy / dist;
-          nodes[i].vx -= nx * repulsion * 0.15;
-          nodes[i].vy -= ny * repulsion * 0.15;
-          nodes[j].vx += nx * repulsion * 0.15;
-          nodes[j].vy += ny * repulsion * 0.15;
+          nodes[i].vx -= nx * repulsion * 0.1;
+          nodes[i].vy -= ny * repulsion * 0.1;
+          nodes[j].vx += nx * repulsion * 0.1;
+          nodes[j].vy += ny * repulsion * 0.1;
         }
       }
     }
@@ -218,8 +218,8 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         nodes[i].vy += dy * 0.02;
       }
 
-      nodes[i].vx *= 0.98;
-      nodes[i].vy *= 0.98;
+      nodes[i].vx *= 0.92;
+      nodes[i].vy *= 0.92;
       nodes[i].x += nodes[i].vx;
       nodes[i].y += nodes[i].vy;
     }
