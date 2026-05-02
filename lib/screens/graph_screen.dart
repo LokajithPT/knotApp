@@ -23,6 +23,8 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
   String? _selectedNode;
   double _scale = 1.0;
   Offset _offset = Offset.zero;
+  int? _longPressNode;
+  bool _showDeleteProgress = false;
 
   @override
   void initState() {
@@ -193,6 +195,10 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
   }
 
   void _onTapUp(TapUpDetails details) async {
+    if (_longPressNode != null) {
+      setState(() { _longPressNode = null; _showDeleteProgress = false; });
+      return;
+    }
     final scaleOffset = Offset(_offset.dx / _scale, _offset.dy / _scale);
     final pos = (details.localPosition - scaleOffset) / _scale;
     for (var i = 0; i < nodes.length; i++) {
@@ -209,6 +215,47 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         }
         break;
       }
+    }
+  }
+
+  void _onLongPressStart(LongPressStartDetails details) {
+    final scaleOffset = Offset(_offset.dx / _scale, _offset.dy / _scale);
+    final pos = (details.localPosition - scaleOffset) / _scale;
+    for (var i = 0; i < nodes.length; i++) {
+      final dx = nodes[i].x - pos.dx;
+      final dy = nodes[i].y - pos.dy;
+      if (math.sqrt(dx * dx + dy * dy) < 50 && !nodes[i].isExternal) {
+        setState(() { _longPressNode = i; _showDeleteProgress = false; });
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (_longPressNode == i && mounted) {
+            setState(() { _showDeleteProgress = true; });
+          }
+        });
+        Future.delayed(const Duration(milliseconds: 2000), () {
+          if (_longPressNode == i && mounted) {
+            _deleteNode(i);
+          }
+        });
+        break;
+      }
+    }
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) {
+    setState(() { _longPressNode = null; _showDeleteProgress = false; });
+  }
+
+  void _onLongPressCancel() {
+    setState(() { _longPressNode = null; _showDeleteProgress = false; });
+  }
+
+  Future<void> _deleteNode(int index) async {
+    final node = nodes[index];
+    final file = File('${widget.project.path}/${node.id}.md');
+    if (await file.exists()) {
+      await file.delete();
+      setState(() { _longPressNode = null; });
+      _refreshGraph();
     }
   }
 
@@ -370,6 +417,9 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         onScaleUpdate: _onScaleUpdate,
         onScaleEnd: _onScaleEnd,
         onTapUp: _onTapUp,
+        onLongPressStart: _onLongPressStart,
+        onLongPressEnd: _onLongPressEnd,
+        onLongPressCancel: _onLongPressCancel,
         child: Container(
           color: const Color(0xFF0a0a0f),
           child: Stack(
@@ -403,6 +453,33 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
                   ),
                 ),
               ),
+              if (_longPressNode != null)
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFff006e).withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                          const SizedBox(width: 8),
+                          Text(
+                            _showDeleteProgress ? 'Releasing will delete' : 'Hold to delete ${nodes[_longPressNode!].id}',
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 bottom: 20,
                 right: 20,
