@@ -212,6 +212,17 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
     }
   }
 
+  Future<void> _createNewNote() async {
+    final noteName = 'note_${DateTime.now().millisecondsSinceEpoch}';
+    final note = Note(name: noteName, content: '# New Note\n\n', preview: '', tags: []);
+    final filePath = '${widget.project.path}/$noteName.md';
+    await File(filePath).writeAsString(note.content);
+    if (mounted) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
+      _refreshGraph();
+    }
+  }
+
   void _organizeTree() {
     if (nodes.isEmpty) return;
 
@@ -353,20 +364,6 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(widget.project.name, style: const TextStyle(color: Color(0xFF00d4ff), fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Color(0xFF00d4ff)),
-            onPressed: () async {
-              final note = Note(name: 'new_note', content: '# New Note\n\n', preview: '', tags: []);
-              final filePath = '${widget.project.path}/new_note.md';
-              await File(filePath).writeAsString(note.content);
-              if (mounted) {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
-                _refreshGraph();
-              }
-            },
-          ),
-        ],
       ),
       body: GestureDetector(
         onScaleStart: _onScaleStart,
@@ -409,23 +406,41 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
               Positioned(
                 bottom: 20,
                 right: 20,
-                child: GestureDetector(
-                  onTap: _organizeTree,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFFff006e), Color(0xFF7b2cbf)]),
-                      borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: _createNewNote,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1a1a2e),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF00d4ff)),
+                        ),
+                        child: const Icon(Icons.add, color: Color(0xFF00d4ff), size: 24),
+                      ),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text('wow', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _organizeTree,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFFff006e), Color(0xFF7b2cbf)]),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text('wow', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
