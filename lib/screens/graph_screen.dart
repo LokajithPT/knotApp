@@ -261,6 +261,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       await File(filePath).writeAsString(note.content);
       if (mounted) {
         await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
+        await Future.delayed(const Duration(milliseconds: 100));
         _refreshGraph();
       }
     }
