@@ -119,10 +119,18 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       }
     } else {
       setState(() {
-        _scale = (_scale * details.scale).clamp(0.3, 3.0);
-        _offset = details.focalPoint - details.focalPoint;
+        final scaleDelta = details.scale < 1.0 ? 0.95 + (details.scale - 1.0) * 0.5 : 1.0 + (details.scale - 1.0) * 0.3;
+        _scale = (_scale * scaleDelta).clamp(0.3, 3.0);
+        _offset = _offset + (details.focalPointDelta * 0.5);
       });
     }
+  }
+
+  void _recenter() {
+    setState(() {
+      _scale = 1.0;
+      _offset = Offset.zero;
+    });
   }
 
   void _onScaleEnd(ScaleEndDetails details) async {
@@ -222,7 +230,10 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         } else {
           final note = widget.project.notes.firstWhere((n) => n.name == nodes[i].id, orElse: () => Note(name: nodes[i].id, content: '', preview: '', tags: []));
           await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath)));
-          if (mounted) { _refreshGraph(); }
+          if (mounted) {
+            await Future.delayed(const Duration(milliseconds: 200));
+            _refreshGraph();
+          }
         }
         break;
       }
@@ -492,6 +503,19 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
                           border: Border.all(color: const Color(0xFF00d4ff)),
                         ),
                         child: const Icon(Icons.add, color: Color(0xFF00d4ff), size: 24),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: _recenter,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1a1a2e),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF7b2cbf)),
+                        ),
+                        child: const Icon(Icons.center_focus_strong, color: Color(0xFF7b2cbf), size: 24),
                       ),
                     ),
                     const SizedBox(height: 12),
