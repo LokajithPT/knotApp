@@ -42,7 +42,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
     final h = MediaQuery.of(context).size.height;
     nodes = widget.project.notes.asMap().entries.map((e) {
       final angle = e.key * 2 * 3.14159 / widget.project.notes.length;
-      final radius = 80.0 + e.key * 15;
+      final radius = 120.0 + e.key * 30;
       return _NodeData(
         id: e.value.name,
         x: w / 2 + math.cos(angle) * radius,
@@ -148,7 +148,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         final dy = nodes[j].y - nodes[i].y;
         final dist = math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < 300) {
-          final repulsion = 2500 / (dist * dist + 100);
+          final repulsion = 4000 / (dist * dist + 100);
           final nx = dx / dist;
           final ny = dy / dist;
           nodes[i].vx -= nx * repulsion * 0.15;
@@ -165,7 +165,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       final dy = nodes[edge.target].y - nodes[edge.source].y;
       final dist = math.sqrt(dx * dx + dy * dy);
       if (dist > 0) {
-        final force = (dist - 280) * 0.0005;
+        final force = (dist - 350) * 0.0004;
         final fx = dx / dist * force;
         final fy = dy / dist * force;
         nodes[edge.source].vx += fx * 0.5;
