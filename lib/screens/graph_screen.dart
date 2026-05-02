@@ -92,6 +92,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
   }
 
   void _onScaleStart(ScaleStartDetails details) {
+    _draggedNode = null;
     if (details.pointerCount == 1) {
       final scaleOffset = Offset(_offset.dx / _scale, _offset.dy / _scale);
       final pos = (details.localFocalPoint - scaleOffset) / _scale;
@@ -117,7 +118,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       if (isInTrashZone != _isDraggingToTrash) {
         setState(() { _isDraggingToTrash = isInTrashZone; });
       }
-    } else {
+    } else if (details.pointerCount >= 2) {
       setState(() {
         final scaleDelta = details.scale < 1.0 ? 0.95 + (details.scale - 1.0) * 0.5 : 1.0 + (details.scale - 1.0) * 0.3;
         _scale = (_scale * scaleDelta).clamp(0.3, 3.0);
