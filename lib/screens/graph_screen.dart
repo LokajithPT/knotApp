@@ -119,10 +119,19 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         setState(() { _isDraggingToTrash = isInTrashZone; });
       }
     } else if (details.pointerCount >= 2) {
+      final oldScale = _scale;
+      final newScale = (_scale * details.scale).clamp(0.3, 3.0);
+      final scaleChange = newScale / oldScale;
+      
+      final focalPoint = details.localFocalPoint;
+      final newOffset = Offset(
+        focalPoint.dx - (focalPoint.dx - _offset.dx) * scaleChange + details.focalPointDelta.dx,
+        focalPoint.dy - (focalPoint.dy - _offset.dy) * scaleChange + details.focalPointDelta.dy,
+      );
+      
       setState(() {
-        final scaleDelta = details.scale < 1.0 ? 0.95 + (details.scale - 1.0) * 0.5 : 1.0 + (details.scale - 1.0) * 0.3;
-        _scale = (_scale * scaleDelta).clamp(0.3, 3.0);
-        _offset = _offset + (details.focalPointDelta * 0.5);
+        _scale = newScale;
+        _offset = newOffset;
       });
     }
   }
