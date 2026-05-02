@@ -17,6 +17,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _contentController;
   bool _hasChanges = false;
   bool _showToolbar = false;
+  bool _viewMode = true;
   List<String> _files = [];
 
   @override
@@ -79,18 +80,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ListTile(
               leading: const Icon(Icons.link, color: Color(0xFF7b2cbf)),
               title: const Text('Wiki Link [[note]]', style: TextStyle(color: Color(0xFFe0e0e0))),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showFilePicker(false);
-              },
+              onTap: () { Navigator.pop(ctx); _showFilePicker(false); },
             ),
             ListTile(
               leading: const Icon(Icons.link_off, color: Color(0xFFff006e)),
               title: const Text('Inter-Project [[project:note]]', style: TextStyle(color: Color(0xFFe0e0e0))),
-              onTap: () {
-                Navigator.pop(ctx);
-                _showProjectPicker();
-              },
+              onTap: () { Navigator.pop(ctx); _showProjectPicker(); },
             ),
           ],
         ),
@@ -143,15 +138,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _showProjectPicker() async {
     final projects = await KnotService.getProjects();
-    if (projects.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No projects found', style: TextStyle(color: Colors.white)), backgroundColor: Color(0xFFff006e)),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
+    if (projects.isEmpty || !mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1a1a2e),
@@ -190,10 +177,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             itemBuilder: (context, i) => ListTile(
                               leading: const Icon(Icons.description, color: Color(0xFF00d4ff)),
                               title: Text(projNotes.notes[i].name, style: const TextStyle(color: Color(0xFFe0e0e0))),
-                              onTap: () {
-                                Navigator.pop(ctx2);
-                                _insertText('[[$proj:${projNotes.notes[i].name}]]');
-                              },
+                              onTap: () { Navigator.pop(ctx2); _insertText('[[$proj:${projNotes.notes[i].name}]]'); },
                             ),
                           ),
                         ),
@@ -207,6 +191,35 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildFormattedText(String content) {
+    final lines = content.split('\n');
+    final spans = <TextSpan>[];
+
+    for (var line in lines) {
+      if (line.startsWith('# ')) {
+        spans.add(TextSpan(text: '${line.substring(2)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 28, fontWeight: FontWeight.bold)));
+      } else if (line.startsWith('## ')) {
+        spans.add(TextSpan(text: '${line.substring(3)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 24, fontWeight: FontWeight.bold)));
+      } else if (line.startsWith('### ')) {
+        spans.add(TextSpan(text: '${line.substring(4)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 20, fontWeight: FontWeight.bold)));
+      } else if (line.startsWith('#### ')) {
+        spans.add(TextSpan(text: '${line.substring(5)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 18, fontWeight: FontWeight.bold)));
+      } else if (line.startsWith('- ')) {
+        spans.add(const TextSpan(text: '  • ', style: TextStyle(color: Color(0xFFe0e0e0), fontSize: 16)));
+        spans.add(TextSpan(text: '${line.substring(2)}\n', style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16)));
+      } else {
+        var processed = line;
+        processed = processed.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!);
+        processed = processed.replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!);
+        processed = processed.replaceAllMapped(RegExp(r'\[\[(\w+)\]\]'), (m) => '[[${m.group(1)}]]');
+        processed = processed.replaceAllMapped(RegExp(r'\[\[(\w+):(\w+)\]\]'), (m) => '[[${m.group(1)}:${m.group(2)}]]');
+        spans.add(TextSpan(text: '$processed\n', style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5)));
+      }
+    }
+
+    return RichText(text: TextSpan(children: spans));
   }
 
   Future<void> _save() async {
@@ -238,57 +251,66 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFF00d4ff)), onPressed: () => Navigator.pop(context)),
         title: Text(widget.note.name, style: const TextStyle(color: Color(0xFF00d4ff))),
         actions: [
-          if (_hasChanges) IconButton(icon: const Icon(Icons.save, color: Color(0xFF00d4ff)), onPressed: _save),
+          IconButton(
+            icon: Icon(_viewMode ? Icons.edit : Icons.visibility, color: const Color(0xFF00d4ff)),
+            onPressed: () => setState(() => _viewMode = !_viewMode),
+          ),
+          if (_hasChanges && !_viewMode) IconButton(icon: const Icon(Icons.save, color: Color(0xFF00d4ff)), onPressed: _save),
         ],
       ),
-      body: Column(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            height: _showToolbar ? 60 : 0,
-            child: _showToolbar ? Container(
-              color: const Color(0xFF1a1a2e),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _toolButton('H1', () => _insertText('# ')),
-                    _toolButton('H2', () => _insertText('## ')),
-                    _toolButton('H3', () => _insertText('### ')),
-                    _toolButton('B', () => _insertText('**X**', wrapSelection: true), bold: true),
-                    _toolButton('I', () => _insertText('*X*', wrapSelection: true), italic: true),
-                    _toolButton('•', () => _insertText('- ')),
-                    _toolButton('[[', _showLinkPicker),
-                    const VerticalDivider(color: Color(0xFF2d2d44), width: 20),
-                    _toolButton('H4', () => _insertText('#### ')),
-                    _toolButton('"', () => _insertText('"X"', wrapSelection: true)),
-                    _toolButton('`', () => _insertText('`X`', wrapSelection: true)),
-                  ],
-                ),
-              ),
-            ) : const SizedBox(),
-          ),
-          Expanded(
-            child: Container(
+      body: _viewMode
+          ? SingleChildScrollView(
               padding: const EdgeInsets.all(20),
-              child: TextField(
-                controller: _contentController,
-                maxLines: null,
-                expands: true,
-                style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5),
-                decoration: const InputDecoration(hintText: 'Start writing...', hintStyle: TextStyle(color: Color(0xFF666666)), border: InputBorder.none),
-              ),
+              child: _buildFormattedText(_contentController.text),
+            )
+          : Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: _showToolbar ? 60 : 0,
+                  child: _showToolbar ? Container(
+                    color: const Color(0xFF1a1a2e),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _toolButton('H1', () => _insertText('# ')),
+                          _toolButton('H2', () => _insertText('## ')),
+                          _toolButton('H3', () => _insertText('### ')),
+                          _toolButton('B', () => _insertText('**X**', wrapSelection: true), bold: true),
+                          _toolButton('I', () => _insertText('*X*', wrapSelection: true), italic: true),
+                          _toolButton('•', () => _insertText('- ')),
+                          _toolButton('[[', _showLinkPicker),
+                          const VerticalDivider(color: Color(0xFF2d2d44), width: 20),
+                          _toolButton('H4', () => _insertText('#### ')),
+                          _toolButton('"', () => _insertText('"X"', wrapSelection: true)),
+                          _toolButton('`', () => _insertText('`X`', wrapSelection: true)),
+                        ],
+                      ),
+                    ),
+                  ) : const SizedBox(),
+                ),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    child: TextField(
+                      controller: _contentController,
+                      maxLines: null,
+                      expands: true,
+                      style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5),
+                      decoration: const InputDecoration(hintText: 'Start writing...', hintStyle: TextStyle(color: Color(0xFF666666)), border: InputBorder.none),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: !_viewMode ? FloatingActionButton(
         mini: true,
         backgroundColor: const Color(0xFF1a1a2e),
         onPressed: () => setState(() => _showToolbar = !_showToolbar),
         child: Icon(_showToolbar ? Icons.unfold_less : Icons.unfold_more, color: const Color(0xFF00d4ff)),
-      ),
+      ) : null,
     );
   }
 
