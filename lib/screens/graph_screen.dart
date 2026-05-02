@@ -247,13 +247,13 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       if (children.isNotEmpty) {
         final childSpread = spread / children.length.clamp(1, children.length);
         for (int i = 0; i < children.length; i++) {
-          dfs(children[i], x - spread / 2 + childSpread * i + childSpread / 2, y + 80, childSpread * 0.8);
+          dfs(children[i], x - spread / 2 + childSpread * i + childSpread / 2, y + 150, childSpread * 0.8);
         }
       }
     }
 
     for (int i = 0; i < roots.length; i++) {
-      dfs(roots[i], centerX + (i - roots.length / 2) * 100, centerY - 100, 200.0 / roots.length);
+      dfs(roots[i], centerX + (i - roots.length / 2) * 250, centerY - 150, 400.0 / roots.length);
     }
 
     for (int i = 0; i < nodes.length; i++) {
