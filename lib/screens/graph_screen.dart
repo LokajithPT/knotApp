@@ -230,13 +230,39 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
   }
 
   Future<void> _createNewNote() async {
-    final noteName = 'note_${DateTime.now().millisecondsSinceEpoch}';
-    final note = Note(name: noteName, content: '# New Note\n\n', preview: '', tags: []);
-    final filePath = '${widget.project.path}/$noteName.md';
-    await File(filePath).writeAsString(note.content);
-    if (mounted) {
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
-      _refreshGraph();
+    final controller = TextEditingController();
+    final noteName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a2e),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('New Note', style: TextStyle(color: Color(0xFF00d4ff))),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Note name',
+            hintStyle: TextStyle(color: Colors.grey[600]),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey[700]!)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00d4ff))),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: TextStyle(color: Colors.grey[500]))),
+          TextButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Create', style: TextStyle(color: Color(0xFF00d4ff), fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+
+    if (noteName != null && noteName.isNotEmpty) {
+      final note = Note(name: noteName, content: '# $noteName\n\n', preview: '', tags: []);
+      final filePath = '${widget.project.path}/$noteName.md';
+      await File(filePath).writeAsString(note.content);
+      if (mounted) {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
+        _refreshGraph();
+      }
     }
   }
 

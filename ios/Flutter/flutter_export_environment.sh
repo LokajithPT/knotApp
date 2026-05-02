@@ -1,6 +1,6 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=/usr/lib/flutter"
+export "FLUTTER_ROOT=/home/l0wkey/.cache/flutter_sdk"
 export "FLUTTER_APPLICATION_PATH=/home/l0wkey/code/cpp/clishit/knot_app"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_TARGET=lib/main.dart"
