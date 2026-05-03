@@ -45,7 +45,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
     final h = MediaQuery.of(context).size.height;
     nodes = widget.project.notes.asMap().entries.map((e) {
       final angle = e.key * 2 * 3.14159 / widget.project.notes.length;
-      final radius = 120.0 + e.key * 30;
+      final radius = 50.0 + e.key * 20;
       return _NodeData(
         id: e.value.name,
         x: w / 2 + math.cos(angle) * radius,
@@ -175,8 +175,8 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
 
       final dxCenter = (centerX + floatX) - nodes[i].x;
       final dyCenter = (centerY + floatY) - nodes[i].y;
-      nodes[i].vx += dxCenter * 0.03;
-      nodes[i].vy += dyCenter * 0.03;
+      nodes[i].vx += dxCenter * 0.02;
+      nodes[i].vy += dyCenter * 0.02;
     }
 
     for (var i = 0; i < nodes.length; i++) {
@@ -184,20 +184,20 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         final dx = nodes[j].x - nodes[i].x;
         final dy = nodes[j].y - nodes[i].y;
         final dist = math.sqrt(dx * dx + dy * dy);
-        final minDist = 120.0;
-        if (dist > 0 && dist < 300) {
+        final minDist = 90.0;
+        if (dist > 0 && dist < 250) {
           double repulsion;
           if (dist < minDist) {
-            repulsion = 5000 / (dist * dist + 1);
+            repulsion = 2000 / (dist * dist + 1);
           } else {
-            repulsion = 2000 / (dist * dist + 100);
+            repulsion = 500 / (dist * dist + 100);
           }
           final nx = dx / dist;
           final ny = dy / dist;
-          nodes[i].vx -= nx * repulsion * 0.15;
-          nodes[i].vy -= ny * repulsion * 0.15;
-          nodes[j].vx += nx * repulsion * 0.15;
-          nodes[j].vy += ny * repulsion * 0.15;
+          nodes[i].vx -= nx * repulsion * 0.08;
+          nodes[i].vy -= ny * repulsion * 0.08;
+          nodes[j].vx += nx * repulsion * 0.08;
+          nodes[j].vy += ny * repulsion * 0.08;
         }
       }
     }
@@ -208,7 +208,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       final dy = nodes[edge.target].y - nodes[edge.source].y;
       final dist = math.sqrt(dx * dx + dy * dy);
       if (dist > 0) {
-        final force = (dist - 350) * 0.0004;
+        final force = (dist - 100) * 0.008;
         final fx = dx / dist * force;
         final fy = dy / dist * force;
         nodes[edge.source].vx += fx * 0.5;
@@ -226,8 +226,8 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         nodes[i].vy += dy * 0.02;
       }
 
-      nodes[i].vx *= 0.92;
-      nodes[i].vy *= 0.92;
+      nodes[i].vx *= 0.95;
+      nodes[i].vy *= 0.95;
       nodes[i].x += nodes[i].vx;
       nodes[i].y += nodes[i].vy;
     }
