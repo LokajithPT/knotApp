@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'dart:io';
 import '../models/note.dart';
 import '../services/knot_service.dart';
+import 'graph_screen.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final Note note;
   final String? filePath;
+  final Project? project;
 
-  const NoteDetailScreen({super.key, required this.note, this.filePath});
+  const NoteDetailScreen({super.key, required this.note, this.filePath, this.project});
 
   @override
   State<NoteDetailScreen> createState() => _NoteDetailScreenState();
@@ -194,32 +197,164 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   Widget _buildFormattedText(String content) {
+    final wikiLinkPattern = RegExp(r'\[\[(\w+)\]\]');
+    final interProjectLinkPattern = RegExp(r'\[\[(\w+):(\w+)\]\]');
+    
+    final blocks = <Widget>[];
     final lines = content.split('\n');
-    final spans = <TextSpan>[];
-
+    
     for (var line in lines) {
       if (line.startsWith('# ')) {
-        spans.add(TextSpan(text: '${line.substring(2)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 28, fontWeight: FontWeight.bold)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(line.substring(2), style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 28, fontWeight: FontWeight.bold)),
+        ));
       } else if (line.startsWith('## ')) {
-        spans.add(TextSpan(text: '${line.substring(3)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 24, fontWeight: FontWeight.bold)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(line.substring(3), style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 24, fontWeight: FontWeight.bold)),
+        ));
       } else if (line.startsWith('### ')) {
-        spans.add(TextSpan(text: '${line.substring(4)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 20, fontWeight: FontWeight.bold)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(line.substring(4), style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 20, fontWeight: FontWeight.bold)),
+        ));
       } else if (line.startsWith('#### ')) {
-        spans.add(TextSpan(text: '${line.substring(5)}\n', style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 18, fontWeight: FontWeight.bold)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(line.substring(5), style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 18, fontWeight: FontWeight.bold)),
+        ));
       } else if (line.startsWith('- ')) {
-        spans.add(const TextSpan(text: '  • ', style: TextStyle(color: Color(0xFFe0e0e0), fontSize: 16)));
-        spans.add(TextSpan(text: '${line.substring(2)}\n', style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            children: [
+              const Text('  • ', style: TextStyle(color: Color(0xFFe0e0e0), fontSize: 16)),
+              Expanded(child: _buildClickableText(line.substring(2))),
+            ],
+          ),
+        ));
       } else {
-        var processed = line;
-        processed = processed.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!);
-        processed = processed.replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!);
-        processed = processed.replaceAllMapped(RegExp(r'\[\[(\w+)\]\]'), (m) => '[[${m.group(1)}]]');
-        processed = processed.replaceAllMapped(RegExp(r'\[\[(\w+):(\w+)\]\]'), (m) => '[[${m.group(1)}:${m.group(2)}]]');
-        spans.add(TextSpan(text: '$processed\n', style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5)));
+        blocks.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: _buildClickableText(line),
+        ));
       }
     }
-
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: blocks,
+      ),
+    );
+  }
+  
+  Widget _buildClickableText(String text) {
+    final spans = <TextSpan>[];
+    var currentIndex = 0;
+    
+    final wikiPattern = RegExp(r'\[\[(\w+)\]\]');
+    final interPattern = RegExp(r'\[\[(\w+):(\w+)\]\]');
+    final combinedPattern = RegExp(r'\[\[(\w+)(?::(\w+))?\]\]');
+    
+    for (final match in combinedPattern.allMatches(text)) {
+      if (match.start > currentIndex) {
+        var plainText = text.substring(currentIndex, match.start);
+        plainText = plainText.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!);
+        plainText = plainText.replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!);
+        spans.add(TextSpan(text: plainText, style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5)));
+      }
+      
+      final project = match.group(2);
+      final target = match.group(1) ?? '';
+      
+      if (project != null && target.isNotEmpty) {
+        spans.add(TextSpan(
+          text: '[[$project:$target]]',
+          style: const TextStyle(color: Color(0xFFff006e), fontWeight: FontWeight.w500),
+          recognizer: TapGestureRecognizer()..onTap = () => _navigateToLink(project, target),
+        ));
+      } else if (target.isNotEmpty) {
+        spans.add(TextSpan(
+          text: '[[$target]]',
+          style: const TextStyle(color: Color(0xFF7b2cbf), fontWeight: FontWeight.w500),
+          recognizer: TapGestureRecognizer()..onTap = () => _navigateToNote(target),
+        ));
+      }
+      currentIndex = match.end;
+    }
+    
+    if (currentIndex < text.length) {
+      var remaining = text.substring(currentIndex);
+      remaining = remaining.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!);
+      remaining = remaining.replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!);
+      spans.add(TextSpan(text: remaining, style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 16, height: 1.5)));
+    }
+    
     return RichText(text: TextSpan(children: spans));
+  }
+  
+  void _navigateToNote(String noteName) async {
+    Note note;
+    Project? proj;
+    
+    if (widget.project != null) {
+      note = widget.project!.notes.firstWhere((n) => n.name == noteName, orElse: () => Note(name: noteName, content: '', preview: '', tags: []));
+      proj = widget.project;
+    } else {
+      final projectPath = widget.filePath?.substring(0, widget.filePath!.lastIndexOf('/'));
+      if (projectPath != null) {
+        final projectName = projectPath.split('/').last;
+        proj = await KnotService.loadProject(projectName);
+        note = proj.notes.firstWhere((n) => n.name == noteName, orElse: () => Note(name: noteName, content: '', preview: '', tags: []));
+      } else {
+        return;
+      }
+    }
+    
+    if (note.filePath != null && await File(note.filePath!).exists()) {
+      if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath, project: proj)));
+    }
+  }
+
+  Future<List<Note>> _getBacklinks() async {
+    Project? proj;
+    if (widget.project != null) {
+      proj = widget.project;
+    } else if (widget.filePath != null) {
+      final projectPath = widget.filePath!.substring(0, widget.filePath!.lastIndexOf('/'));
+      final projectName = projectPath.split('/').last;
+      proj = await KnotService.loadProject(projectName);
+    }
+    
+    if (proj == null) return [];
+    
+    final backlinks = <Note>[];
+    final currentName = widget.note.name;
+    
+    for (final note in proj.notes) {
+      if (note.name == currentName) continue;
+      final content = note.content;
+      if (content.contains('[[$currentName]]')) {
+        backlinks.add(note);
+      }
+    }
+    return backlinks;
+  }
+
+  void _navigateToLink(String project, String noteName) async {
+    try {
+      final proj = await KnotService.loadProject(project);
+      if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => GraphScreen(project: proj)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Note not found: $noteName', style: const TextStyle(color: Colors.white)), backgroundColor: const Color(0xFFff006e)),
+        );
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -259,9 +394,33 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ],
       ),
       body: _viewMode
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: _buildFormattedText(_contentController.text),
+          ? FutureBuilder<List<Note>>(
+              future: _getBacklinks(),
+              builder: (context, snapshot) {
+                final backlinks = snapshot.data ?? [];
+                return SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFormattedText(_contentController.text),
+                      if (backlinks.isNotEmpty) ...[
+                        const SizedBox(height: 30),
+                        const Divider(color: Color(0xFF2d2d44)),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16, bottom: 8),
+                          child: Text('Linked from', style: TextStyle(color: Color(0xFF7b2cbf), fontSize: 14, fontWeight: FontWeight.bold)),
+                        ),
+                        ...backlinks.map((note) => ListTile(
+                          leading: const Icon(Icons.arrow_back, color: Color(0xFF7b2cbf), size: 20),
+                          title: Text(note.name, style: const TextStyle(color: Color(0xFF00d4ff))),
+                          dense: true,
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath, project: widget.project))),
+                        )),
+                      ],
+                    ],
+                  ),
+                );
+              },
             )
           : Column(
               children: [

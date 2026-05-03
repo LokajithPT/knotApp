@@ -24,6 +24,8 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
   double _scale = 1.0;
   Offset _offset = Offset.zero;
   bool _isDraggingToTrash = false;
+  String _searchQuery = '';
+  Note? _previewNote;
 
   @override
   void initState() {
@@ -182,14 +184,20 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
         final dx = nodes[j].x - nodes[i].x;
         final dy = nodes[j].y - nodes[i].y;
         final dist = math.sqrt(dx * dx + dy * dy);
-        if (dist > 0 && dist < 250) {
-          final repulsion = 1500 / (dist * dist + 100);
+        final minDist = 120.0;
+        if (dist > 0 && dist < 300) {
+          double repulsion;
+          if (dist < minDist) {
+            repulsion = 5000 / (dist * dist + 1);
+          } else {
+            repulsion = 2000 / (dist * dist + 100);
+          }
           final nx = dx / dist;
           final ny = dy / dist;
-          nodes[i].vx -= nx * repulsion * 0.1;
-          nodes[i].vy -= ny * repulsion * 0.1;
-          nodes[j].vx += nx * repulsion * 0.1;
-          nodes[j].vy += ny * repulsion * 0.1;
+          nodes[i].vx -= nx * repulsion * 0.15;
+          nodes[i].vy -= ny * repulsion * 0.15;
+          nodes[j].vx += nx * repulsion * 0.15;
+          nodes[j].vy += ny * repulsion * 0.15;
         }
       }
     }
@@ -239,7 +247,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
           if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => GraphScreen(project: proj)));
         } else {
           final note = widget.project.notes.firstWhere((n) => n.name == nodes[i].id, orElse: () => Note(name: nodes[i].id, content: '', preview: '', tags: []));
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath)));
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath, project: widget.project)));
           if (mounted) {
             await Future.delayed(const Duration(milliseconds: 200));
             _refreshGraph();
@@ -281,9 +289,83 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
       final filePath = '${widget.project.path}/$noteName.md';
       await File(filePath).writeAsString(note.content);
       if (mounted) {
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath)));
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: filePath, project: widget.project)));
         await Future.delayed(const Duration(milliseconds: 100));
         _refreshGraph();
+      }
+    }
+  }
+
+  void _showSearch() {
+    final controller = TextEditingController(text: _searchQuery);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1a1a2e),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Search Notes', style: TextStyle(color: Color(0xFF00d4ff))),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Search...',
+            hintStyle: TextStyle(color: Colors.grey[600]),
+            prefixIcon: const Icon(Icons.search, color: Color(0xFF00d4ff)),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey[700]!)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00d4ff))),
+          ),
+          onChanged: (value) => setState(() => _searchQuery = value),
+        ),
+        actions: [
+          TextButton(onPressed: () { setState(() => _searchQuery = ''); Navigator.pop(ctx); }, child: Text('Clear', style: TextStyle(color: Colors.grey[500]))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done', style: TextStyle(color: Color(0xFF00d4ff)))),
+        ],
+      ),
+    );
+  }
+
+  void _showNotePreview(Offset position) {
+    final scaleOffset = Offset(_offset.dx / _scale, _offset.dy / _scale);
+    final pos = (position - scaleOffset) / _scale;
+    
+    for (var i = 0; i < nodes.length; i++) {
+      final dx = nodes[i].x - pos.dx;
+      final dy = nodes[i].y - pos.dy;
+      if (math.sqrt(dx * dx + dy * dy) < 50 && !nodes[i].isExternal) {
+        final note = widget.project.notes.firstWhere((n) => n.name == nodes[i].id, orElse: () => Note(name: nodes[i].id, content: '', preview: '', tags: []));
+        setState(() => _previewNote = note);
+        
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(note.name, style: const TextStyle(color: Color(0xFF00d4ff))),
+            content: SizedBox(
+              width: 300,
+              height: 200,
+              child: SingleChildScrollView(
+                child: Text(
+                  note.content.length > 500 ? '${note.content.substring(0, 500)}...' : note.content,
+                  style: const TextStyle(color: Color(0xFFe0e0e0), fontSize: 14),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () { setState(() => _previewNote = null); Navigator.pop(ctx); }, child: Text('Close', style: TextStyle(color: Colors.grey[500]))),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note, filePath: note.filePath, project: widget.project)));
+                  _refreshGraph();
+                },
+                child: const Text('Open', style: TextStyle(color: Color(0xFF00d4ff))),
+              ),
+            ],
+          ),
+        ).then((_) => setState(() => _previewNote = null));
+        break;
       }
     }
   }
@@ -429,12 +511,16 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(widget.project.name, style: const TextStyle(color: Color(0xFF00d4ff), fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(icon: const Icon(Icons.search, color: Color(0xFF00d4ff)), onPressed: _showSearch),
+        ],
       ),
       body: GestureDetector(
         onScaleStart: _onScaleStart,
         onScaleUpdate: _onScaleUpdate,
         onScaleEnd: _onScaleEnd,
         onTapUp: _onTapUp,
+        onLongPressStart: (details) => _showNotePreview(details.localPosition),
         child: Container(
           color: const Color(0xFF0a0a0f),
           child: Stack(
@@ -447,6 +533,7 @@ class _GraphScreenState extends State<GraphScreen> with TickerProviderStateMixin
                   selectedNode: _selectedNode,
                   scale: _scale,
                   offset: _offset,
+                  searchQuery: _searchQuery,
                 ),
               ),
               Positioned(
@@ -605,7 +692,10 @@ class _GraphPainter extends CustomPainter {
     this.selectedNode,
     required this.scale,
     required this.offset,
+    this.searchQuery = '',
   });
+
+  final String searchQuery;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -637,9 +727,10 @@ class _GraphPainter extends CustomPainter {
 
     for (final node in nodes) {
       final isSelected = selectedNode == node.id;
+      final isMatch = searchQuery.isNotEmpty && node.id.toLowerCase().contains(searchQuery.toLowerCase());
       final color = node.isExternal
           ? const Color(0xFF9d4edd)
-          : (isSelected ? const Color(0xFFff006e) : const Color(0xFF00d4ff));
+          : (isSelected ? const Color(0xFFff006e) : (isMatch ? const Color(0xFF00ff88) : const Color(0xFF00d4ff)));
 
       canvas.drawCircle(
         Offset(node.x, node.y),
