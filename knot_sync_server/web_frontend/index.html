@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knot - Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="navbar">
+      <div class="logo">KNOT</div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link active">Dashboard</a>
+        <a href="projects.html" class="nav-link">Projects</a>
+        <a href="money.html" class="nav-link">Money</a>
+      </div>
+      <div class="sync-status" id="syncStatus">● Online</div>
+    </nav>
+
+    <div class="container">
+      <header class="page-header">
+        <h1>Dashboard</h1>
+        <p class="subtitle">Your knowledge graph at a glance</p>
+      </header>
+
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <div class="stat-value" id="statSpent">$0.00</div>
+          <div class="stat-label">Spent</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value" id="statIncome">$0.00</div>
+          <div class="stat-label">Income</div>
+        </div>
+        <div class="stat-card info">
+          <div class="stat-value" id="statProjects">0</div>
+          <div class="stat-label">Projects</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-value" id="statPending">0</div>
+          <div class="stat-label">Pending Categorization</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>Recent Transactions</h2>
+          <a href="money.html" class="btn-sm">View All</a>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Merchant</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Category</th>
+              </tr>
+            </thead>
+            <tbody id="recentTxns">
+              <tr><td colspan="5" style="text-align:center;color:#888;padding:24px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>Projects</h2>
+          <a href="projects.html" class="btn-sm">View All</a>
+        </div>
+        <div class="projects-grid" id="projectCards">
+          <div style="grid-column:1/-1;text-align:center;color:#888;padding:24px;">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knot - Project</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="navbar">
+      <div class="logo">KNOT</div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Dashboard</a>
+        <a href="projects.html" class="nav-link">Projects</a>
+        <a href="money.html" class="nav-link">Money</a>
+      </div>
+      <div class="sync-status" id="syncStatus">● Online</div>
+    </nav>
+
+    <div class="container">
+      <header class="page-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <a href="projects.html" class="btn-sm">&larr; Back</a>
+        </div>
+        <h1 id="projectTitle">Project</h1>
+        <p class="subtitle">Notes in this project</p>
+      </header>
+
+      <div class="notes-list" id="notesList">
+        <div style="grid-column:1/-1;text-align:center;color:#888;padding:24px;">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/project.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knot - Money</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="navbar">
+      <div class="logo">KNOT</div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Dashboard</a>
+        <a href="projects.html" class="nav-link">Projects</a>
+        <a href="money.html" class="nav-link active">Money</a>
+      </div>
+      <div class="sync-status" id="syncStatus">● Online</div>
+    </nav>
+
+    <div class="container">
+      <header class="page-header">
+        <h1>Money</h1>
+        <p class="subtitle">Transaction tracking</p>
+      </header>
+
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <div class="stat-value" id="statSpent">$0.00</div>
+          <div class="stat-label">Spent</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value" id="statIncome">$0.00</div>
+          <div class="stat-label">Income</div>
+        </div>
+        <div class="stat-card info">
+          <div class="stat-value" id="statCount">0</div>
+          <div class="stat-label">Transactions</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>By Category</h2>
+        </div>
+        <div id="emojiGroups"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/money.js"></script>
+</body>
+</html>
