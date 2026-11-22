@@ -25,12 +25,38 @@ class SyncService {
 
   bool get isConfigured => _serverUrl.isNotEmpty && SettingsService.settings.syncEnabled;
 
-  /// Last successful sync timestamp (ISO8601). Stored locally so we only pull changes since then.
+  /// Last successful sync timestamp (ISO8601).
   static String? _lastSync;
   static bool _syncing = false;
   static final ValueNotifier<bool> syncingNotifier = ValueNotifier(false);
   static final ValueNotifier<String?> lastSyncNotifier = ValueNotifier(null);
   static final ValueNotifier<int> pendingCountNotifier = ValueNotifier(0);
+
+  /// ---------- Progress UI notifiers ----------
+
+  /// 0.0 to 1.0
+  static final ValueNotifier<double> syncProgressNotifier = ValueNotifier(0.0);
+
+  /// Human-readable current step (e.g. "Sending transaction 3 of 12")
+  static final ValueNotifier<String> syncStatusNotifier = ValueNotifier('Idle');
+
+  /// Recent log lines (newest first)
+  static final ValueNotifier<List<String>> syncLogNotifier = ValueNotifier([]);
+
+  static void _log(String msg) {
+    final time = DateTime.now().toString().substring(11, 19);
+    final line = '[$time] $msg';
+    if (kDebugMode) print('[SYNC] $line');
+    syncStatusNotifier.value = msg;
+    final list = List<String>.from(syncLogNotifier.value);
+    list.insert(0, line);
+    if (list.length > 100) list.removeLast();
+    syncLogNotifier.value = list;
+  }
+
+  static void _setProgress(double p) {
+    syncProgressNotifier.value = p.clamp(0.0, 1.0);
+  }
 
   /// ---------- Helpers ----------
 
@@ -72,11 +98,17 @@ class SyncService {
   Future<void> pullTransactions() async {
     if (!_serverUrl.isNotEmpty) return;
     final since = _lastSync ?? '';
+    _log('Pulling transactions since $since...');
     try {
       final res = await _get('sync/pull?since=${Uri.encodeComponent(since)}');
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) {
+        _log('Pull transactions failed: HTTP ${res.statusCode}');
+        return;
+      }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final changes = data['changes'] as List? ?? [];
+      _log('Found ${changes.length} transaction changes');
+      int count = 0;
       for (final c in changes) {
         if (c['type'] == 'transaction' && c['op'] == 'upsert') {
           final d = c['data'];
@@ -101,35 +133,61 @@ class SyncService {
             confidence: (d['confidence'] as num?)?.toDouble() ?? 1.0,
           );
           await MoneyService.upsertTransaction(tx);
+          count++;
+          _setProgress(0.25 + (0.25 * count / changes.length.clamp(1, 1)));
+          _log('Received tx: ${tx.merchant} (${tx.amount})');
         }
       }
+      _log('Transactions pulled: $count');
     } catch (e) {
-      if (kDebugMode) print('Sync pull transactions error: $e');
+      _log('Pull transactions error: $e');
     }
   }
 
   Future<void> pullProjectsAndNotes() async {
     if (!_serverUrl.isNotEmpty) return;
+    _log('Pulling projects and notes...');
     try {
       final res = await _get('projects');
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) {
+        _log('Pull projects failed: HTTP ${res.statusCode}');
+        return;
+      }
       final projects = jsonDecode(res.body) as List?;
-      if (projects == null) return;
+      if (projects == null) {
+        _log('No projects returned');
+        return;
+      }
+      _log('Found ${projects.length} projects');
+      int projDone = 0;
       for (final p in projects) {
         final name = p['name'] as String?;
         if (name == null) continue;
+        projDone++;
+        _setProgress(0.5 + (0.25 * projDone / projects.length));
+        _log('Pulling notes for project: $name');
         try {
           final notesRes = await _get('projects/$name/notes');
-          if (notesRes.statusCode != 200) continue;
+          if (notesRes.statusCode != 200) {
+            _log('  Notes for $name failed: HTTP ${notesRes.statusCode}');
+            continue;
+          }
           final notes = jsonDecode(notesRes.body) as List?;
           if (notes == null) continue;
+          _log('  Found ${notes.length} notes in $name');
+          int noteDone = 0;
           for (final n in notes) {
+            noteDone++;
             await _upsertNote(name, n);
+            _log('  Synced note: ${n['name'] ?? '?'}');
           }
-        } catch (_) {}
+        } catch (e) {
+          _log('  Notes error for $name: $e');
+        }
       }
+      _log('Projects and notes pulled');
     } catch (e) {
-      if (kDebugMode) print('Sync pull projects error: $e');
+      _log('Pull projects error: $e');
     }
   }
 
@@ -156,12 +214,12 @@ class SyncService {
       if (isVoice) {
         final voicePath = n['voice_path'] as String?;
         if (voicePath != null) {
-          // Download voice attachment from server
           try {
             final voiceRes = await _get('files/$voicePath');
             if (voiceRes.statusCode == 200) {
               final voiceFile = File('$projectPath/$noteName.voice');
               await voiceFile.writeAsBytes(voiceRes.bodyBytes);
+              _log('  Downloaded voice: $voicePath');
             }
           } catch (_) {}
         }
@@ -173,8 +231,14 @@ class SyncService {
 
   Future<void> pushTransactions() async {
     if (!_serverUrl.isNotEmpty) return;
+    _log('Pushing transactions to server...');
     try {
       final txs = await MoneyService.loadTransactions();
+      if (txs.isEmpty) {
+        _log('No transactions to push');
+        return;
+      }
+      _log('Found ${txs.length} local transactions');
       final changes = <Map<String, dynamic>>[];
       for (final t in txs) {
         changes.add({
@@ -184,12 +248,20 @@ class SyncService {
           'data': t.toJson(),
         });
       }
-      if (changes.isEmpty) return;
+      int sent = 0;
+      for (final c in changes) {
+        sent++;
+        _setProgress(0.75 + (0.25 * sent / changes.length));
+        _log('Sending transaction ${c['id']}: ${c['data']['merchant'] ?? '?'}');
+      }
       final res = await _post('sync/push', body: {'changes': changes});
-      if (res.statusCode != 200) return;
-      if (kDebugMode) print('Sync push: ${res.body}');
+      if (res.statusCode != 200) {
+        _log('Push failed: HTTP ${res.statusCode}');
+        return;
+      }
+      _log('Transactions pushed: ${txs.length}');
     } catch (e) {
-      if (kDebugMode) print('Sync push transactions error: $e');
+      _log('Push transactions error: $e');
     }
   }
 
@@ -220,7 +292,7 @@ class SyncService {
       if (files == null || files.isEmpty) return null;
       return files[0]['filename'] as String?;
     } catch (e) {
-      if (kDebugMode) print('Upload file error: $e');
+      _log('Upload file error: $e');
       return null;
     }
   }
@@ -238,20 +310,42 @@ class SyncService {
     return 'application/octet-stream';
   }
 
-  /// ---------- Full sync ----------
+  /// ---------- Full sync with progress ----------
 
   Future<void> sync() async {
-    if (!_syncing) {
-      _syncing = true;
-      syncingNotifier.value = true;
+    if (!_serverUrl.isNotEmpty) {
+      _log('Sync aborted: server not configured');
+      return;
     }
+    if (_syncing) {
+      _log('Sync already running');
+      return;
+    }
+
+    _syncing = true;
+    syncingNotifier.value = true;
+    syncProgressNotifier.value = 0.0;
+    syncLogNotifier.value = [];
+    _log('Starting sync...');
+
     try {
+      // Phase 1: Pull transactions (0 - 25%)
       await pullTransactions();
+      _setProgress(0.25);
+
+      // Phase 2: Pull projects & notes (25 - 50%)
       await pullProjectsAndNotes();
+      _setProgress(0.50);
+
+      // Phase 3: Push transactions (50 - 100%)
       await pushTransactions();
+      _setProgress(1.0);
+
       _lastSync = DateTime.now().toIso8601String();
       lastSyncNotifier.value = _lastSync ?? '';
-      pendingCountNotifier.value = 0;
+      _log('Sync complete at $_lastSync');
+    } catch (e) {
+      _log('Sync error: $e');
     } finally {
       _syncing = false;
       syncingNotifier.value = false;
@@ -260,25 +354,23 @@ class SyncService {
 
   /// ---------- WebSocket stream ----------
 
-  /// Connect to the server WebSocket and listen for real-time sync events.
-  /// [onMessage] is called with each received JSON string message.
   Future<void> connectWebSocket(void Function(String) onMessage) async {
     if (!_serverUrl.isNotEmpty) return;
     final wsUrl = _serverUrl.replaceFirst('http', 'ws') + 'sync/stream';
+    _log('Connecting WebSocket: $wsUrl');
     try {
-      // Use dart:io WebSocket for mobile. Falls back silently on web.
       final channel = await WebSocket.connect(
         wsUrl,
         headers: _authHeaders(),
       ).timeout(const Duration(seconds: 10));
-
+      _log('WebSocket connected');
       channel.listen(
         (data) => onMessage(data as String),
-        onError: (e) => ifDebug('WS error: $e'),
-        onDone: () => ifDebug('WS closed'),
+        onError: (e) => _log('WS error: $e'),
+        onDone: () => _log('WS closed'),
       );
     } catch (e) {
-      if (kDebugMode) print('WebSocket connect error: $e');
+      _log('WebSocket connect error: $e');
     }
   }
 

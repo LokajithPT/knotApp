@@ -239,7 +239,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _syncNow() async {
+    if (!SettingsService.settings.syncEnabled) return;
+    if (!SettingsService.settings.syncServerUrl.trim().isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a server URL first'),
+          backgroundColor: Color(0xFFff006e),
+        ),
+      );
+      return;
+    }
+    _showSyncProgressSheet();
     await SyncService.instance.sync();
+    if (mounted) Navigator.pop(context);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -248,6 +260,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  void _showSyncProgressSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1a1a2e),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return ValueListenableBuilder<double>(
+            valueListenable: SyncService.syncProgressNotifier,
+            builder: (_, progress, __) {
+              return ValueListenableBuilder<String>(
+                valueListenable: SyncService.syncStatusNotifier,
+                builder: (_, status, __) {
+                  return ValueListenableBuilder<List<String>>(
+                    valueListenable: SyncService.syncLogNotifier,
+                    builder: (_, logs, __) {
+                      final pct = (progress * 100).toInt().clamp(0, 100);
+                      return Container(
+                        padding: const EdgeInsets.all(20),
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.cloud_sync, color: Color(0xFF00d4ff), size: 24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Syncing…',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '$pct%',
+                                  style: const TextStyle(
+                                    color: Color(0xFF00ff88),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2d2d44),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  backgroundColor: Colors.transparent,
+                                  color: const Color(0xFF00d4ff),
+                                  minHeight: 8,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              status,
+                              style: const TextStyle(
+                                color: Color(0xFFe0e0e0),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: logs.length,
+                                itemBuilder: (_, i) {
+                                  final line = logs[i];
+                                  final isError = line.contains('error') || line.contains('failed');
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 1),
+                                    child: Text(
+                                      line,
+                                      style: TextStyle(
+                                        color: isError ? const Color(0xFFff006e) : Colors.grey[400],
+                                        fontSize: 11,
+                                        fontFamily: 'monospace',
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text(
+                                  'Close',
+                                  style: TextStyle(color: Color(0xFF00d4ff)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
   Widget _deviceModeSection(AppSettings s) {
