@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # ---- Database (PostgreSQL 16) ----
   # Portable, self-contained DB. Data persists in the named volume.

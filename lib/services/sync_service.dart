@@ -268,7 +268,7 @@ class SyncService {
     try {
       // Use dart:io WebSocket for mobile. Falls back silently on web.
       final channel = await WebSocket.connect(
-        Uri.parse(wsUrl),
+        wsUrl,
         headers: _authHeaders(),
       ).timeout(const Duration(seconds: 10));
 
