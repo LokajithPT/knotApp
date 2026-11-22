@@ -236,32 +236,111 @@ class SyncService {
       final txs = await MoneyService.loadTransactions();
       if (txs.isEmpty) {
         _log('No transactions to push');
-        return;
+      } else {
+        _log('Found ${txs.length} local transactions');
+        final changes = <Map<String, dynamic>>[];
+        for (final t in txs) {
+          changes.add({
+            'type': 'transaction',
+            'op': 'upsert',
+            'id': t.id,
+            'data': t.toJson(),
+          });
+        }
+        int sent = 0;
+        for (final c in changes) {
+          sent++;
+          _log('Sending transaction ${c['id']}: ${c['data']['merchant'] ?? '?'}');
+        }
+        final res = await _post('sync/push', body: {'changes': changes});
+        if (res.statusCode != 200) {
+          _log('Push transactions failed: HTTP ${res.statusCode}');
+          return;
+        }
+        _log('Transactions pushed: ${txs.length}');
       }
-      _log('Found ${txs.length} local transactions');
-      final changes = <Map<String, dynamic>>[];
-      for (final t in txs) {
-        changes.add({
-          'type': 'transaction',
-          'op': 'upsert',
-          'id': t.id,
-          'data': t.toJson(),
-        });
-      }
-      int sent = 0;
-      for (final c in changes) {
-        sent++;
-        _setProgress(0.75 + (0.25 * sent / changes.length));
-        _log('Sending transaction ${c['id']}: ${c['data']['merchant'] ?? '?'}');
-      }
-      final res = await _post('sync/push', body: {'changes': changes});
-      if (res.statusCode != 200) {
-        _log('Push failed: HTTP ${res.statusCode}');
-        return;
-      }
-      _log('Transactions pushed: ${txs.length}');
     } catch (e) {
       _log('Push transactions error: $e');
+    }
+  }
+
+  /// Push all local notes (text + voice) to the server.
+  Future<void> pushNotes() async {
+    if (!_serverUrl.isNotEmpty) return;
+    _log('Pushing notes to server...');
+    try {
+      final allNotes = await KnotService.getAllProjectNotes();
+      if (allNotes.isEmpty) {
+        _log('No local notes to push');
+        return;
+      }
+
+      int totalNotes = allNotes.values.expand((v) => v).length;
+      _log('Found $totalNotes local notes across ${allNotes.length} projects');
+
+      int sent = 0;
+      for (final entry in allNotes.entries) {
+        final projectName = entry.key;
+        final noteNames = entry.value;
+
+        for (final noteName in noteNames) {
+          sent++;
+          _log('Sending note: $projectName/$noteName');
+
+          final knotDir = await KnotService.getKnotDir();
+          final projectPath = '$knotDir/$projectName';
+          final mdPath = '$projectPath/$noteName.md';
+
+          String content = '';
+          bool isVoice = false;
+          String? voicePath;
+
+          final mdFile = File(mdPath);
+          if (await mdFile.exists()) {
+            content = await mdFile.readAsString();
+          } else {
+            // It's a voice note (.m4a / .wav / .webm without .md)
+            isVoice = true;
+            for (final ext in ['.m4a', '.wav', '.webm']) {
+              final vf = File('$projectPath/$noteName$ext');
+              if (await vf.exists()) {
+                voicePath = '$noteName$ext';
+                break;
+              }
+            }
+          }
+
+          // Upload voice file first if it exists
+          if (voicePath != null) {
+            final uploaded = await uploadFile(projectName, '$projectPath/$voicePath');
+            if (uploaded != null) {
+              voicePath = uploaded;
+              _log('  Voice uploaded: $uploaded');
+            }
+          }
+
+          final change = {
+            'type': 'note',
+            'op': 'upsert',
+            'id': '$projectName:$noteName',
+            'data': {
+              'project': projectName,
+              'name': noteName,
+              'content': content,
+              'is_voice': isVoice,
+              'voice_path': voicePath,
+            },
+          };
+
+          final res = await _post('sync/push', body: {'changes': [change]});
+          if (res.statusCode != 200) {
+            _log('  Failed to push $noteName: HTTP ${res.statusCode}');
+          }
+        }
+      }
+      _log('Notes pushed: $sent');
+    } catch (e) {
+      _log('Push notes error: $e');
     }
   }
 
@@ -329,16 +408,20 @@ class SyncService {
     _log('Starting sync...');
 
     try {
-      // Phase 1: Pull transactions (0 - 25%)
+      // Phase 1: Pull transactions (0 - 20%)
       await pullTransactions();
-      _setProgress(0.25);
+      _setProgress(0.20);
 
-      // Phase 2: Pull projects & notes (25 - 50%)
+      // Phase 2: Pull projects & notes (20 - 40%)
       await pullProjectsAndNotes();
-      _setProgress(0.50);
+      _setProgress(0.40);
 
-      // Phase 3: Push transactions (50 - 100%)
+      // Phase 3: Push transactions (40 - 70%)
       await pushTransactions();
+      _setProgress(0.70);
+
+      // Phase 4: Push notes (70 - 100%)
+      await pushNotes();
       _setProgress(1.0);
 
       _lastSync = DateTime.now().toIso8601String();
