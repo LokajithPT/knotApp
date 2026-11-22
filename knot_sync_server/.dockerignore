@@ -1,5 +1,3 @@
-target/
 .git/
-**/target/
 *.rs.bak
 *.log

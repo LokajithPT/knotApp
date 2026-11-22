@@ -6,5 +6,7 @@ COPY migrations ./migrations
 COPY web_frontend ./web_frontend
 ENV DATABASE_URL=postgres://knot:knot@postgres:5432/knot
 ENV PORT=8080
+ENV API_KEY=knot-sync-key-2024
+ENV UPLOAD_DIR=/app/uploads
 EXPOSE 8080
 CMD ["/app/knot_sync_server"]
