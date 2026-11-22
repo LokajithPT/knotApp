@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knot Sync — Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #2d2d44;
+    margin-bottom: 32px;
+  }
+  .brand {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #00ff88;
+  }
+  .status .dot {
+    width: 8px; height: 8px;
+    background: #00ff88;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 32px; }
+  .card {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .card h2 {
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 16px;
+  }
+  .stat { font-size: 32px; font-weight: 700; color: #00d4ff; margin-bottom: 8px; }
+  .stat-sub { font-size: 13px; color: #888; }
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #00d4ff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid #2d2d44;
+  }
+  th { background: #161624; color: #888; font-size: 12px; text-transform: uppercase; }
+  tr:hover { background: #1f1f3a; }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-debit { background: #ff006e22; color: #ff006e; border: 1px solid #ff006e44; }
+  .badge-credit { background: #00ff8822; color: #00ff88; border: 1px solid #00ff8844; }
+  .badge-voice { background: #7b2cbf22; color: #7b2cbf; border: 1px solid #7b2cbf44; }
+  .badge-text { background: #00d4ff22; color: #00d4ff; border: 1px solid #00d4ff44; }
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+  .btn {
+    background: #00d4ff;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .btn:hover { filter: brightness(1.2); }
+  .btn-secondary { background: #2d2d44; color: #e0e0e0; }
+  .upload-area {
+    border: 2px dashed #2d2d44;
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    margin: 20px 0;
+    background: #161624;
+  }
+  .upload-area:hover { border-color: #00d4ff; }
+  input[type="file"] { margin: 10px 0; }
+  .key-box {
+    background: #161624;
+    border: 1px solid #2d2d44;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .key-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .key-value { font-family: monospace; font-size: 13px; color: #00d4ff; word-break: break-all; }
+  .empty { color: #888; font-style: italic; text-align: center; padding: 24px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } .container { padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">Knot Sync</div>
+    <div class="status"><div class="dot"></div> Server online</div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Projects</h2>
+      <div class="stat" id="stat-projects">—</div>
+      <div class="stat-sub">Total projects</div>
+    </div>
+    <div class="card">
+      <h2>Notes</h2>
+      <div class="stat" id="stat-notes">—</div>
+      <div class="stat-sub">Synced notes</div>
+    </div>
+    <div class="card">
+      <h2>Transactions</h2>
+      <div class="stat" id="stat-tx">—</div>
+      <div class="stat-sub">Money entries</div>
+    </div>
+    <div class="card">
+      <h2>API Key</h2>
+      <div class="key-box">
+        <div class="key-label">X-API-Key / Bearer token</div>
+        <div class="key-value" id="api-key">knot-sync-key-2024</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📁 File Uploads (Audio / Images)</div>
+    <div class="upload-area">
+      <p>Upload voice notes (.m4a, .wav, .webm) or images. Files are stored and served via <code>/api/files/{filename}</code>.</p>
+      <input type="file" id="fileInput" multiple>
+      <br>
+      <button class="btn" onclick="uploadFiles()">Upload</button>
+      <div id="uploadResult" style="margin-top:12px; font-size:13px; color:#00ff88;"></div>
+    </div>
+  </div>
+
+  <div class="section grid-2">
+    <div class="card">
+      <div class="section-title">📋 Projects</div>
+      <table id="projectsTable">
+        <thead><tr><th>Name</th><th>Created</th></tr></thead>
+        <tbody><tr><td colspan="2" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">💸 Recent Transactions</div>
+      <table id="txTable">
+        <thead><tr><th>Merchant</th><th>Type</th><th>Amount</th><th>Date</th></tr></thead>
+        <tbody><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📝 Recent Notes</div>
+    <table id="notesTable">
+      <thead><tr><th>Project</th><th>Name</th><th>Type</th><th>Updated</th></tr></thead>
+      <tbody><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const API_KEY = 'knot-sync-key-2024';
+
+async function req(path, opts = {}) {
+  const headers = { 'Authorization': 'Bearer ' + API_KEY, ...opts.headers };
+  const res = await fetch(API + '/api' + path, { ...opts, headers });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function loadStats() {
+  try {
+    const [projects, notes, txs] = await Promise.all([
+      req('/projects'),
+      req('/projects/x/notes').then(() => []).catch(() => []), // placeholder
+      req('/money/transactions')
+    ]);
+    // notes count across all projects
+    let totalNotes = 0;
+    for (const p of projects) {
+      try {
+        const ns = await req('/projects/' + encodeURIComponent(p.name) + '/notes');
+        totalNotes += ns.length;
+      } catch {}
+    }
+    document.getElementById('stat-projects').textContent = projects.length;
+    document.getElementById('stat-notes').textContent = totalNotes;
+    document.getElementById('stat-tx').textContent = txs.length;
+
+    renderProjects(projects);
+    renderTransactions(txs.slice(0, 10));
+    renderNotes([]);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function renderProjects(projects) {
+  const tbody = document.querySelector('#projectsTable tbody');
+  tbody.innerHTML = '';
+  if (!projects.length) { tbody.innerHTML = '<tr><td colspan="2" class="empty">No projects</td></tr>'; return; }
+  for (const p of projects) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.name}</td><td class="mono">${new Date(p.created_at).toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+async function renderTransactions(txs) {
+  const tbody = document.querySelector('#txTable tbody');
+  tbody.innerHTML = '';
+  if (!txs.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No transactions</td></tr>'; return; }
+  for (const t of txs) {
+    const tr = document.createElement('tr');
+    const sign = t.tx_type === 'credit' ? '+' : '-';
+    tr.innerHTML = `
+      <td>${t.merchant}</td>
+      <td><span class="badge badge-${t.tx_type}">${t.tx_type}</span></td>
+      <td>${sign} ₹${t.amount}</td>
+      <td class="mono">${t.date ? new Date(t.date).toLocaleString() : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderNotes(notes) {
+  const tbody = document.querySelector('#notesTable tbody');
+  tbody.innerHTML = '';
+  if (!notes.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No notes</td></tr>'; return; }
+  for (const n of notes) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${n.project_id}</td><td>${n.name}</td><td><span class="badge badge-${n.is_voice ? 'voice' : 'text'}">${n.is_voice ? 'voice' : 'text'}</span></td><td class="mono">${new Date(n.updated_at).toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+async function uploadFiles() {
+  const input = document.getElementById('fileInput');
+  if (!input.files.length) return alert('Select files first');
+  const form = new FormData();
+  for (const f of input.files) form.append('file', f);
+  try {
+    const res = await fetch(API + '/api/files/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + API_KEY },
+      body: form
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Upload failed');
+    document.getElementById('uploadResult').innerHTML = 'Uploaded ' + json.files.length + ' file(s).';
+    input.value = '';
+  } catch (e) {
+    document.getElementById('uploadResult').innerHTML = 'Error: ' + e.message;
+    document.getElementById('uploadResult').style.color = '#ff006e';
+  }
+}
+
+loadStats();
+setInterval(loadStats, 15000);
+</script>
+</body>
+</html>

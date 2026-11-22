@@ -1,7 +1,11 @@
 version: "3.8"
+
 services:
+  # ---- Database (PostgreSQL 16) ----
+  # Portable, self-contained DB. Data persists in the named volume.
   postgres:
     image: postgres:16-alpine
+    container_name: knot_db
     environment:
       POSTGRES_USER: knot
       POSTGRES_PASSWORD: knot
@@ -15,18 +19,34 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+    networks:
+      - knot_net
 
+  # ---- Knot Sync Server (Rust + Axum) ----
   server:
     build: .
+    container_name: knot_server
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://knot:knot@postgres:5432/knot
       PORT: 8080
+      API_KEY: knot-sync-key-2024
+      UPLOAD_DIR: /app/uploads
     ports:
       - "8080:8080"
+    volumes:
+      - knot_uploads:/app/uploads
     restart: unless-stopped
+    networks:
+      - knot_net
 
 volumes:
   knot_postgres_data:
+  knot_uploads:
+
+networks:
+  knot_net:
+    driver: bridge

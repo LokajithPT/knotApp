@@ -7,6 +7,9 @@ import 'knot_service.dart';
 import 'money_service.dart';
 import 'settings_service.dart';
 
+/// Shared secret key sent with every request. No JWT — just a constant key.
+const String _apiKey = 'knot-sync-key-2024';
+
 class SyncService {
   static SyncService? _instance;
   static SyncService get instance => _instance ??= SyncService._();
@@ -31,18 +34,23 @@ class SyncService {
 
   /// ---------- Helpers ----------
 
+  Map<String, String> _authHeaders() => {
+    'Authorization': 'Bearer $_apiKey',
+  };
+
   Future<http.Response> _get(String path) async {
     if (!_serverUrl.isNotEmpty) throw Exception('Sync server not configured');
     final uri = Uri.parse('$_serverUrl$path');
-    return await http.get(uri).timeout(const Duration(seconds: 15));
+    return await http.get(uri, headers: _authHeaders()).timeout(const Duration(seconds: 15));
   }
 
-  Future<http.Response> _post(String path, {Object? body}) async {
+  Future<http.Response> _post(String path, {Object? body, Map<String, String>? extraHeaders}) async {
     if (!_serverUrl.isNotEmpty) throw Exception('Sync server not configured');
     final uri = Uri.parse('$_serverUrl$path');
+    final headers = <String, String>{..._authHeaders(), ...?extraHeaders};
     return await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: body == null ? null : jsonEncode(body),
     ).timeout(const Duration(seconds: 15));
   }
@@ -52,7 +60,7 @@ class SyncService {
   Future<bool> ping() async {
     try {
       if (!_serverUrl.isNotEmpty) return false;
-      final res = await _get('api/health');
+      final res = await _get('health');
       return res.statusCode == 200;
     } catch (_) {
       return false;
@@ -65,7 +73,7 @@ class SyncService {
     if (!_serverUrl.isNotEmpty) return;
     final since = _lastSync ?? '';
     try {
-      final res = await _get('api/sync/pull?since=$since');
+      final res = await _get('sync/pull?since=${Uri.encodeComponent(since)}');
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final changes = data['changes'] as List? ?? [];
@@ -103,16 +111,15 @@ class SyncService {
   Future<void> pullProjectsAndNotes() async {
     if (!_serverUrl.isNotEmpty) return;
     try {
-      final res = await _get('api/projects');
+      final res = await _get('projects');
       if (res.statusCode != 200) return;
       final projects = jsonDecode(res.body) as List?;
       if (projects == null) return;
       for (final p in projects) {
         final name = p['name'] as String?;
         if (name == null) continue;
-        // Pull notes for this project
         try {
-          final notesRes = await _get('api/projects/$name/notes');
+          final notesRes = await _get('projects/$name/notes');
           if (notesRes.statusCode != 200) continue;
           final notes = jsonDecode(notesRes.body) as List?;
           if (notes == null) continue;
@@ -135,20 +142,23 @@ class SyncService {
     final isVoice = n['is_voice'] as bool? ?? false;
     final filePath = '$projectPath/$noteName';
     final file = File(filePath);
-    if (!await file.exists() ||
-        (n['updated_at'] != null &&
-            DateTime.parse(n['updated_at']).isAfter(
-              await file.lastModified().then((_) => file.lastModified()),
-            ))) {
+    bool shouldWrite = !await file.exists();
+    if (!shouldWrite && n['updated_at'] != null) {
+      try {
+        final modified = await file.lastModified();
+        shouldWrite = DateTime.parse(n['updated_at']).isAfter(modified);
+      } catch (_) {
+        shouldWrite = true;
+      }
+    }
+    if (shouldWrite) {
       await file.writeAsString(content);
       if (isVoice) {
         final voicePath = n['voice_path'] as String?;
         if (voicePath != null) {
-          // Download voice file
+          // Download voice attachment from server
           try {
-            final voiceRes = await http
-                .get(Uri.parse('$_serverUrl/api/files/$projectName/$noteName'))
-                .timeout(const Duration(seconds: 15));
+            final voiceRes = await _get('files/$voicePath');
             if (voiceRes.statusCode == 200) {
               final voiceFile = File('$projectPath/$noteName.voice');
               await voiceFile.writeAsBytes(voiceRes.bodyBytes);
@@ -175,11 +185,57 @@ class SyncService {
         });
       }
       if (changes.isEmpty) return;
-      final res = await _post('api/sync/push', body: {'changes': changes});
+      final res = await _post('sync/push', body: {'changes': changes});
       if (res.statusCode != 200) return;
+      if (kDebugMode) print('Sync push: ${res.body}');
     } catch (e) {
       if (kDebugMode) print('Sync push transactions error: $e');
     }
+  }
+
+  /// Upload a file (audio / image) to the server. Returns the server filename.
+  Future<String?> uploadFile(String projectName, String filePath, {String? noteName}) async {
+    if (!_serverUrl.isNotEmpty) return null;
+    final file = File(filePath);
+    if (!await file.exists()) return null;
+
+    try {
+      final bytes = await file.readAsBytes();
+      final base64 = base64Encode(bytes);
+      final body = jsonEncode({
+        'filename': filePath.split('/').last,
+        'mime_type': _mimeFor(filePath),
+        'data': base64,
+      });
+
+      final res = await http.post(
+        Uri.parse('$_serverUrl/files/upload'),
+        headers: {..._authHeaders(), 'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 30));
+
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final files = data['files'] as List?;
+      if (files == null || files.isEmpty) return null;
+      return files[0]['filename'] as String?;
+    } catch (e) {
+      if (kDebugMode) print('Upload file error: $e');
+      return null;
+    }
+  }
+
+  String _mimeFor(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.webm')) return 'audio/webm';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    return 'application/octet-stream';
   }
 
   /// ---------- Full sync ----------
@@ -204,13 +260,26 @@ class SyncService {
 
   /// ---------- WebSocket stream ----------
 
-  /// Connect to the server WebSocket and listen for real-time updates.
-  /// [onMessage] is called with each received message.
+  /// Connect to the server WebSocket and listen for real-time sync events.
+  /// [onMessage] is called with each received JSON string message.
   Future<void> connectWebSocket(void Function(String) onMessage) async {
     if (!_serverUrl.isNotEmpty) return;
-    // Note: dart:io WebSocket for mobile; using raw HTTP polling fallback if needed.
-    // For now, WebSocket support is a stub that can be extended with web_socket_channel.
-    if (kDebugMode) print('WebSocket stream: server=$_serverUrl');
+    final wsUrl = _serverUrl.replaceFirst('http', 'ws') + 'sync/stream';
+    try {
+      // Use dart:io WebSocket for mobile. Falls back silently on web.
+      final channel = await WebSocket.connect(
+        Uri.parse(wsUrl),
+        headers: _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      channel.listen(
+        (data) => onMessage(data as String),
+        onError: (e) => ifDebug('WS error: $e'),
+        onDone: () => ifDebug('WS closed'),
+      );
+    } catch (e) {
+      if (kDebugMode) print('WebSocket connect error: $e');
+    }
   }
 
   /// Get pending count (transactions not yet organized)
@@ -228,4 +297,8 @@ class SyncService {
   void refresh() {
     getPendingCount().then((v) => pendingCountNotifier.value = v);
   }
+}
+
+void ifDebug(String msg) {
+  if (kDebugMode) print(msg);
 }

@@ -21,6 +21,7 @@ pub struct NoteMeta {
     pub project_id: String,
     pub name: String,
     pub is_voice: bool,
+    pub voice_path: Option<String>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -77,6 +78,7 @@ pub struct Transaction {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTransaction {
+    pub id: Option<String>,
     pub amount: f64,
     pub tx_type: String,
     pub merchant: String,
@@ -126,4 +128,48 @@ impl Default for UpdateTransaction {
             is_organized: None, reason: None, bank: None, source: None, confidence: None,
         }
     }
+}
+
+/// A single change sent by the client during a push.
+#[derive(Debug, Deserialize)]
+pub struct SyncChange {
+    pub r#type: String,   // "transaction" | "note"
+    pub op: String,       // "upsert" | "delete"
+    pub id: Option<String>,
+    pub data: serde_json::Value,
+}
+
+/// The body of /api/sync/push
+#[derive(Debug, Deserialize)]
+pub struct SyncPayload {
+    pub changes: Vec<SyncChange>,
+}
+
+/// Metadata about an uploaded file (audio, image, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Attachment {
+    pub id: String,
+    pub project_id: Option<String>,
+    pub note_id: Option<String>,
+    pub filename: String,
+    pub mime_type: Option<String>,
+    pub size: i64,
+    pub path: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAttachment {
+    pub project_id: Option<String>,
+    pub note_id: Option<String>,
+    pub filename: String,
+    pub mime_type: Option<String>,
+}
+
+/// JSON body for file upload (base64-encoded data to avoid multipart crate conflicts)
+#[derive(Debug, Deserialize)]
+pub struct UploadFileRequest {
+    pub filename: String,
+    pub mime_type: Option<String>,
+    pub data: String, // base64-encoded file contents
 }
