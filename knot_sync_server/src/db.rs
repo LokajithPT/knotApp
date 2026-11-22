@@ -71,7 +71,11 @@ impl Database {
     }
 
     pub async fn upsert_note(&self, project: &str, payload: &super::models::CreateNote) -> Result<Note, sqlx::Error> {
-        let proj = self.get_project(project).await?.ok_or(sqlx::Error::RowNotFound)?;
+        // Auto-create project if it doesn't exist on the server yet
+        let proj = match self.get_project(project).await? {
+            Some(p) => p,
+            None => self.create_project(project).await?,
+        };
         let now = chrono::Utc::now();
         let name = payload.name.clone();
         let content = payload.content.clone().unwrap_or_default();

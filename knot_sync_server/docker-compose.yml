@@ -33,6 +33,7 @@ services:
       PORT: 8080
       API_KEY: knot-sync-key-2024
       UPLOAD_DIR: /app/uploads
+      RUST_LOG: debug,knot_sync_server=debug,tower_http=debug
     ports:
       - "8080:8080"
     volumes:

@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
 use tokio::fs;
-use tower_http::cors::CorsLayer;
-use tracing::info;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tracing::{info, Level};
 
 pub mod db;
 pub mod models;
@@ -106,6 +106,18 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(serve_dashboard))
         .route("/dashboard.html", get(serve_dashboard))
         .route("/assets/{*path}", get(serve_asset))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|_req: &Request<axum::body::Body>| {
+                    tracing::info_span!("http_request", method = %_req.method(), uri = %_req.uri())
+                })
+                .on_request(|_req: &Request<axum::body::Body>, _span: &tracing::Span| {
+                    tracing::debug!("request started")
+                })
+                .on_response(|_res: &Response, _latency: std::time::Duration, _span: &tracing::Span| {
+                    tracing::debug!("request completed")
+                }),
+        )
         .layer(CorsLayer::permissive())
         .with_state(state);
 
